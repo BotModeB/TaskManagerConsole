@@ -1,31 +1,50 @@
 package com.taskmanagerconsole.model;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.taskmanagerconsole.model.Task;
-import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
 public class TaskTest {
     @Test
-    public void test_task_creation(){
-        int id = 1;
-        String title = "Testing task";
-        LocalDate dueDate = LocalDate.now();
+    @DisplayName("Проверка успешного создания задачи через Builder")
+    public void test_task_creation_with_builder(){
+        LocalDateTime now = LocalDateTime.now();
         
-        Task task = new Task(id, title, dueDate);
+        Task task = Task.builder()
+        .id(1)
+        .title("Тестовая задача")
+        .description("Описание задачи")
+        .status(TaskStatus.TODO)
+        .priority(Priority.HIGH)
+        .project("app")
+        .tags(List.of("test","java"))
+        .createdAt(now)
+        .build();
 
-        assertEquals(1, task.getId(), "Id must be equal to 1");
-        assertEquals("Testing task", task.getTitle(), "Title must match");
-        assertEquals(dueDate, task.getDueDate(), "Date must match");
-        assertFalse(task.isCompleted(), "New task must be uncompleted");
+        assertNotNull(task, "Объект задачи не должен быть null");
+        assertEquals(1, task.getId(), "ID задачи не совпадает с ID загруженой задачи");
+        assertEquals("Тестовая задача", task.getTitle(), "Заголовок задачи не совпадает с заголовком загруженой задачи");
+        assertEquals("Описание задачи", task.getDescription(), "Описание задачи не совпадает с описанием загруженой задачи");
+        assertEquals(TaskStatus.TODO, task.getStatus(), "Статус задачи не совпадает с статусом загруженой задачи");
+        assertEquals(Priority.HIGH, task.getPriority(), "Приоритет задачи не совпадает с приоритетом загруженой задачи");
+        assertEquals("app", task.getProject(), "Проект задачи не совпадает с проектом загруженой задачи");
+        assertEquals(List.of("test","java"), task.getTags(), "Теги задачи не совпадают с тегами загруженой задачи");
+        assertEquals(now, task.getCreatedAt(), "Даты создания задачи не совпадает с датой загруженой задачи");
     }
 
     @Test
-    public void test_toggle_status() {
-        Task task = new Task(1, "Купить хлеб", LocalDate.now());
+    @DisplayName("Проверка работы сеттеров Lombok") 
+    public void test_update_task_status() {
+        Task task = Task.builder()
+            .id(1)
+            .title("Тестовая задачи")
+            .status(TaskStatus.TODO)
+            .build();
 
-        task.setCompleted(true);
+        task.setStatus(TaskStatus.DONE);
 
-        assertTrue(task.isCompleted(), "Task status should have changed to true");
+        assertEquals(TaskStatus.DONE, task.getStatus(), "Статус не изменился после сеттера");
     }
 }

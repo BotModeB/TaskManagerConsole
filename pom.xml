@@ -41,6 +41,15 @@
             <version>5.11.3</version>
             <scope>test</scope>
         </dependency>
+
+        <!--Lombok project для удосбтва создания сущности и ее инициализации-->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>1.18.32</version>
+            <scope>provided</scope>
+        </dependency>
+ 
     </dependencies>
 
 </project>

@@ -1,83 +1,115 @@
 package com.taskmanagerconsole.service;
 
-import org.junit.jupiter.api.Test;
-import static org.junit.jupiter.api.Assertions.*;
-
-import com.taskmanagerconsole.model.Task;
+import com.taskmanagerconsole.model.*;
 import com.taskmanagerconsole.repository.TaskRepository;
-import java.time.LocalDate;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+
 import java.util.List;
 
-public class TaskServiceTest {
+import static org.junit.jupiter.api.Assertions.*;
 
-    @Test
-    public void test_task_add(){
-        TaskRepository repository = new TaskRepository();
-        
-        Task task1 = new Task(1, "buy milk", LocalDate.now());
-        Task task2 = new Task(2, "create service layer", LocalDate.now());
-        Task task3 = new Task(3, "create ui", LocalDate.now());
-        Task task4 = new Task(4, "test app", LocalDate.now());
-        repository.saveAll(List.of(task1, task2, task3, task4));
+@DisplayName("Тесты для TaskService")
+class TaskServiceTest {
 
-        TaskService service = new TaskService(repository);
+    private TaskRepository repository;
+    private TaskService service;
 
-        String originalTitle = "big dick, big ball";
-        service.addTask(originalTitle, LocalDate.now());
-
-        List<Task> loadTasks = repository.loadAll();
-        Task lastTask = loadTasks.getLast();
-        
-        assertEquals(originalTitle, lastTask.getTitle(), "task not added");
-        assertEquals(5, lastTask.getId(), "generated ID is incorrect");
+    @BeforeEach
+    void setUp() {
+        repository = new TaskRepository();
+        repository.deleteAll();
+        service = new TaskService(repository);
     }
 
-    @Test
-    public void test_get_tasks(){
-        TaskRepository repository = new TaskRepository();
-        Task task1 = new Task(1, "buy milk", LocalDate.now());
-        repository.saveAll(List.of(task1));
+    @Nested
+    @DisplayName("Тесты добавления задач (addTask)")
+    class AddTaskTests {
 
-        TaskService service = new TaskService(repository);
+        @Test
+        @DisplayName("Должно успешно добавлять задачу с генерацией ID и дефолтных полей")
+        void test_addTask_successfully() {
+            Task task = service.addTask("Title", "Description", Priority.HIGH, "", List.of("test"), null, null);
 
-        List<Task> loadedTasks = service.getAllTasks();
-        Task loadedFirstTask = loadedTasks.get(0);
+            assertNotNull(task);
+            assertEquals(1, task.getId(), "Первой задаче должен присвоиться ID 1");
+            assertEquals("Title", task.getTitle());
+            assertEquals(TaskStatus.TODO, task.getStatus());
+            assertNotNull(task.getCreatedAt());
+        }
 
-        assertEquals(task1.getId(), loadedFirstTask.getId(), "ID не совпадает");
-        assertEquals(task1.getTitle(), loadedFirstTask.getTitle(), "Название не совпадает");
+        @Test
+        @DisplayName("Должно выбрасывать исключение, если заголовок пустой")
+        void test_throwException_when_title_isEmpty() {
+            assertThrows(IllegalArgumentException.class, () -> {
+                service.addTask("", "Description", Priority.MEDIUM, "", List.of(), null, null);
+            });
+        }
     }
 
-    @Test
-    public void test_delete_task(){
-        TaskRepository repository = new TaskRepository();
-        Task task1 = new Task(1, "buy milk", LocalDate.now());
-        Task task2 = new Task(2, "create service layer", LocalDate.now());
-        repository.saveAll(List.of(task1, task2));
+    @Nested
+    @DisplayName("Тесты обновления статуса (updateTaskStatus)")
+    class UpdateStatusTests {
 
-        TaskService service = new TaskService(repository);
+        @Test
+        @DisplayName("Должно менять статус на DONE и проставлять completedAt")
+        void test_updateStatus_to_done_and_setCompletedAt() {
+            Task created = service.addTask("Title", "Description", Priority.LOW, "", List.of(), null, null);
+            
+            service.updateTaskStatus(created.getId(), TaskStatus.DONE);
 
-        service.deleteTask(1);
-        
-        List<Task> loadedTasks = repository.loadAll();
-        assertEquals(1, loadedTasks.size(), "Размер списка должен быть 1");
-        assertEquals(task2.getId(), loadedTasks.get(0).getId(), "Осталась не та задача");
+            Task updated = service.getTaskById(created.getId()).get();
+            assertEquals(TaskStatus.DONE, updated.getStatus());
+            assertNotNull(updated.getCompletedAt(), "Дата завершения должна заполниться автоматически");
+        }
+
+        @Test
+        @DisplayName("Должно кидать исключение, если задача для обновления не найдена")
+        void test_throwException_when_task_not_found() {
+            assertThrows(IllegalArgumentException.class, () -> {
+                service.updateTaskStatus(999, TaskStatus.IN_PROGRESS);
+            });
+        }
     }
 
-    @Test
-    public void test_toggle_task_status(){
-        TaskRepository repository = new TaskRepository();
-        Task task1 = new Task(1, "buy milk", LocalDate.now());
-        Task task2 = new Task(2, "big dick, big ball", LocalDate.now());   
-        repository.saveAll(List.of(task1, task2));
+    @Nested
+    @DisplayName("Тесты фильтрации ")
+    class FilterTests {
 
-        TaskService service = new TaskService(repository);
-        boolean originalStatus = task1.isCompleted();
+        @Test
+        @DisplayName("Должно фильтровать список задач по: проект, теги, статус, приоритет, ключевое слово")
+        void test_filter_tasks(){
+            Task task1 = service.addTask("Title No.1", "Descriprions", Priority.MEDIUM, "TEST", List.of(), null, null);
+            Task task2 = service.addTask("Title No.2", "Descriprions", Priority.MEDIUM, "", List.of("TEST"), null, null);
+            Task task3 = service.addTask("Title No.3", "Descriprions", Priority.MEDIUM, "", List.of(), null, null);
+            service.updateTaskStatus(task3.getId(), TaskStatus.IN_PROGRESS);
 
-        service.toggleTaskStatus(1);
-        
-        Task loadedTask = repository.loadAll().get(0);
-        boolean changedStatus = loadedTask.isCompleted();
+            Task task4 = service.addTask("Title No.4", "Descriprions", Priority.HIGH, "", List.of(), null, null);
+            Task task5 = service.addTask("Title No.5", "Keyword", Priority.MEDIUM, "", List.of(), null, null);
+            
+            assertEquals(
+                task1.getTitle(), 
+                service.getFilteredTasks(task1.getProject(), null, null, null, null).get(0).getTitle(),
+             "Неправильная фильтрация по проекту, заголовки не совпали");
+            assertEquals(
+                task2.getTitle(), 
+                service.getFilteredTasks(null, task2.getTags(), null, null, null).get(0).getTitle(),
+             "Неправильная фильтрация по тегам, заголовки не совпали");
+            assertEquals(
+                task3.getTitle(), 
+                service.getFilteredTasks(null, null, task3.getStatus(), null, null).get(0).getTitle(),
+             "Неправильная фильтрация по статусу, заголовки не совпали");
+            assertEquals(
+                task4.getTitle(), 
+                service.getFilteredTasks(null, null, null, task4.getPriority(), null).get(0).getTitle(),
+             "Неправильная фильтрация по приоритету, заголовки не совпали");
+            assertEquals(
+                task5.getTitle(), 
+                service.getFilteredTasks(null, null, null, null, "keyword").get(0).getTitle(),
+             "Неправильная фильтрация по ключевому слову, заголовки не совпали");
 
-        assertEquals(!originalStatus, changedStatus, "toggle task status not changed");
+        }
     }
 }
